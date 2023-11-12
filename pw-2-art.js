@@ -7,17 +7,31 @@ module.exports = function PwToArt({types: t}) {
         }
       },
       CallExpression(path) {
-        const parent = path.parent;
-        const comments = parent && parent.leadingComments;
+        if(path.node.callee.name !== 'test') return;
+        if(!t.isIdentifier(path.node.callee)) return;
 
-        if (comments && comments.length > 0) {
-          // Obtén el valor del comentario y asigna el nombre a la función
-          const commentValue = comments[comments.length - 1].value.trim();
-          if (t.isIdentifier(path.node.callee)) {
-            path.node.callee.name = commentValue.replace("@pw2art: ", "");
-          }
-        }
+        const functionName = getFunctionName(path);
+        const executingBlock = path.node.arguments[1].body;
+        const functionDeclaration = t.functionDeclaration(
+          t.identifier(functionName), 
+          [],
+          executingBlock
+        );
+
+        path.replaceWith(functionDeclaration);
       }
     }
   };
 };
+
+
+const getFunctionName = (path)=> {
+
+  const parent = path.parent;
+  const fn = parent && parent.leadingComments?.[0]?.value.trim();
+  
+  const altNameFunction = `execute_${path.parentPath.parent.body.indexOf(path.parent)}`;
+  if (!fn) return altNameFunction;
+
+  return fn.replace(/@pw2art: /, '');
+}

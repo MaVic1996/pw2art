@@ -2,7 +2,6 @@
   "name": "pw2art",
   "version": "1.0.0",
   "description": "Transpiler from usual playwright to artillery scripts ",
-  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
