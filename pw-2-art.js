@@ -2,41 +2,21 @@ module.exports = function PwToArt({types: t}) {
   return {
     visitor: {
       ImportDeclaration(path) {
-        if(path.node.source.value == "@playwright/test") {
-          path.remove();
-        }
-      },
-      ExpressionStatement(path, state) {
-        if(checkIsExpectSentence(path)) 
+        if(path.node.source.value == "@playwright/test")
           return path.remove();
 
+        if(path.node.source.value.includes('on-rails'))
+          return path.remove();
+      },
+      ExpressionStatement(path, state) {
         if(checkIsTestDescribe(path, t))
           return extractBodyFromTestDescribe(path);
 
-        if(checkIsTestHook(path, t))
-          return path.remove();
-        
-        if(path.node.expression?.callee?.name === 'appScenario') 
+        if(checkIsExpectSentence(path) || checkIsTestHook(path, t) || checkIsRubyHelper(path)) 
           return path.remove();
 
-        const expressionChild = path.node.expression;
-        if(!t.isCallExpression(expressionChild)) return;
-        if(expressionChild.callee.name !== 'test') return;
-        const functionName = getFunctionName(path, state);
-        const executingBlock = expressionChild.arguments[1].body;
-        const params = expressionChild.arguments[1].params?.[0];
-        const { properties } = params;
-        const paramName = t.isIdentifier(properties[0].key) ? properties[0].key.name : null;
-        state.generatedFunctions.push(functionName);
-
-        const functionDeclaration = t.functionDeclaration(
-          t.identifier(functionName), 
-          [t.identifier(paramName)],
-          t.blockStatement([executingBlock]),
-          false,
-          true
-        );
-        path.replaceWith(functionDeclaration);
+        if(checkIsTestMethodCall(path, t))
+          return replaceForExecutableFunction(path, state, t);
       },
       Program: {
         enter(_, state) {
@@ -44,25 +24,7 @@ module.exports = function PwToArt({types: t}) {
           state.generatedFunctions = [];
         },
         exit(path, state) {
-          // Al finalizar el análisis del programa, inserta exportaciones al final del código
-          const specifiers = state.generatedFunctions.map((funcName) => {
-            const id = t.identifier(funcName);
-            return  t.objectProperty(id, id);
-          });
-
-          const objectExpression = t.objectExpression(specifiers);
-
-          const moduleExports = t.expressionStatement(
-            t.assignmentExpression(
-              '=',
-              t.memberExpression(t.identifier('module'), t.identifier('exports')),
-              objectExpression
-            )
-          );
-
-
-
-          path.pushContainer('body', moduleExports);
+          createExports(path, state, t)
         },
       }
     }
@@ -85,6 +47,44 @@ const extractBodyFromTestDescribe = (path) => {
   path.replaceWithMultiple(bodyNodes);
 }
 
+const replaceForExecutableFunction = (path, state, t) => {
+  const expressionChild = path.node.expression;
+  const functionName = getFunctionName(path, state);
+  const executingBlock = expressionChild.arguments[1].body;
+  const params = expressionChild.arguments[1].params?.[0];
+  const { properties } = params;
+  const paramName = t.isIdentifier(properties[0].key) ? properties[0].key.name : null;
+  state.generatedFunctions.push(functionName);
+
+  const functionDeclaration = t.functionDeclaration(
+    t.identifier(functionName), 
+    [t.identifier(paramName)],
+    executingBlock,
+    false,
+    true
+  );
+  path.replaceWith(functionDeclaration);
+}
+
+const createExports = (path, state, t) => {
+  const specifiers = state.generatedFunctions.map((funcName) => {
+    const id = t.identifier(funcName);
+    return  t.objectProperty(id, id);
+  });
+
+  const objectExpression = t.objectExpression(specifiers);
+
+  const moduleExports = t.expressionStatement(
+    t.assignmentExpression(
+      '=',
+      t.memberExpression(t.identifier('module'), t.identifier('exports')),
+      objectExpression
+    )
+  );
+
+  path.pushContainer('body', moduleExports);
+}
+
 const checkIsExpectSentence = (path) => {
   return path?.node?.expression?.argument?.callee?.object?.callee?.name === 'expect';
 };
@@ -102,4 +102,13 @@ const checkIsTestHook = (path, t) => {
   const calleeProp = path.node.expression.callee?.property?.name;
 
   return !!calleeProp  && ['before', 'after'].filter((part_hook) => calleeProp.includes(part_hook)).length > 0;
+}
+
+const checkIsRubyHelper = (path) => {
+  return path.node.expression?.callee?.name?.includes('app');
+}
+
+const checkIsTestMethodCall = (path, t) => {
+  const expressionChild = path.node.expression;
+  return t.isCallExpression(expressionChild) && expressionChild.callee.name === 'test';
 }
