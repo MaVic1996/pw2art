@@ -1,11 +1,8 @@
 {
   "name": "pw2art",
   "version": "1.0.0",
-  "description": "Transpiler from usual playwright to artillery scripts ",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
+  "description": "Transpiler from usual playwright test syntax to artillery playwright engine syntax.",
+  "author": "Víctor M. Chaves García",
   "license": "ISC",
   "devDependencies": {
     "@babel/cli": "^7.23.0",
