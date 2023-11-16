@@ -20,7 +20,6 @@ module.exports = function PwToArt({types: t}) {
       },
       Program: {
         enter(_, state) {
-          // Inicializa el array en el estado
           state.generatedFunctions = [];
         },
         exit(path, state) {
